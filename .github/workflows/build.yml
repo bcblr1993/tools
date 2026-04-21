@@ -40,7 +40,7 @@ jobs:
         pyinstaller --onefile --console software_scanner.py
         # 重命名生成的二进制文件以便区分平台
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          mv dist/software_scanner.exe dist/software_scanner.exe
+          echo "Windows build finished, skipping rename."
         elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           mv dist/software_scanner dist/software_scanner_linux
         else

@@ -1,0 +1,15 @@
+# 扫描报告
+reports/
+
+# Python 编译缓存
+__pycache__/
+*.pyc
+
+# PyInstaller 临时文件
+build/
+dist/
+*.spec
+
+# 系统文件
+.DS_Store
+Thumbs.db

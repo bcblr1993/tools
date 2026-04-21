@@ -1,0 +1,54 @@
+name: Build Software Scanner
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            artifact_name: software_scanner.exe
+          - os: ubuntu-latest
+            artifact_name: software_scanner_linux
+          - os: macos-latest
+            artifact_name: software_scanner_macos
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        
+    - name: Build with PyInstaller
+      shell: bash
+      run: |
+        pyinstaller --onefile --console software_scanner.py
+        # 重命名生成的二进制文件以便区分平台
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          mv dist/software_scanner.exe dist/software_scanner.exe
+        elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          mv dist/software_scanner dist/software_scanner_linux
+        else
+          mv dist/software_scanner dist/software_scanner_macos
+        fi
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: dist/software_scanner*

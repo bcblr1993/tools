@@ -1,10 +1,12 @@
-name: Build Software Scanner
+name: Release Software Scanner
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*' # 当推送以 v 开头的标签时触发，如 v1.0.0
+
+permissions:
+  contents: write # 赋予流水线写入 Release 的权限
 
 jobs:
   build:
@@ -38,17 +40,22 @@ jobs:
       shell: bash
       run: |
         pyinstaller --onefile --console software_scanner.py
-        # 重命名生成的二进制文件以便区分平台
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          echo "Windows build finished, skipping rename."
+          mv dist/software_scanner.exe dist/software_scanner_win.exe
         elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
           mv dist/software_scanner dist/software_scanner_linux
         else
           mv dist/software_scanner dist/software_scanner_macos
         fi
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v4
+    - name: Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: ${{ matrix.artifact_name }}
-        path: dist/software_scanner*
+        files: |
+          dist/software_scanner_win.exe
+          dist/software_scanner_linux
+          dist/software_scanner_macos
+        # 允许失败，因为 matrix 会运行三次，只有存在的产物会被上传
+        fail_on_unmatched_files: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

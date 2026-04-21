@@ -685,9 +685,15 @@ def main():
 
     print_banner(hostname, os_ver, scan_time)
 
-    # 准备输出目录
-    script_dir = Path(__file__).parent.resolve()
-    report_dir = script_dir / "reports"
+    # 获取程序所在的物理目录（兼容打包后的 .exe）
+    if getattr(sys, 'frozen', False):
+        # 如果是打包后的环境 (.exe)
+        current_dir = Path(sys.executable).parent.resolve()
+    else:
+        # 如果是直接运行脚本
+        current_dir = Path(sys.argv[0]).parent.resolve()
+    
+    report_dir = current_dir / "reports"
     report_dir.mkdir(exist_ok=True)
 
     # ---- 系统软件扫描 ----

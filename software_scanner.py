@@ -21,9 +21,71 @@ from pathlib import Path
 # ============================================================
 # 常量与配置
 # ============================================================
-VERSION = "1.0"
+VERSION = "1.1"
 COMMAND_TIMEOUT = 30  # 子命令超时（秒）
 CSV_BOM = "\ufeff"    # UTF-8 BOM，确保 Excel 正确显示中文
+
+
+# ============================================================
+# 软件过滤逻辑
+# ============================================================
+
+class SoftwareFilter:
+    """系统原生软件过滤器"""
+    
+    # Windows 规则
+    WIN_PUBLISHERS = ["Microsoft Corporation"]
+    WIN_APPX_PREFIXES = ["Microsoft.", "System.", "Windows.", "App."]
+    WIN_WHITELIST = ["Visual Studio", "Office", "Edge", "PowerShell", "VS Code", "Teams", "Sql Server"]
+
+    # Linux 规则
+    LINUX_SECTIONS = ["base", "admin", "kernel", "libs", "shlibs", "perl", "python"]
+    LINUX_PRIORITIES = ["required", "important"]
+    LINUX_VENDORS = ["CentOS", "Red Hat, Inc.", "Ubuntu Developers", "Debian", "Canonical Group Ltd"]
+    LINUX_WHITELIST = ["docker", "nginx", "apache2", "mysql", "redis", "postgresql", "python3"]
+
+    @classmethod
+    def is_native(cls, item, sys_name):
+        name = item.get("name", "").lower()
+        publisher = item.get("publisher", "").lower()
+        source = item.get("source", "")
+        
+        # 1. 白名单检查：即使是原生发行商提供的，但属于应用层工具的予以保留
+        whitelist = cls.WIN_WHITELIST if sys_name == "Windows" else cls.LINUX_WHITELIST
+        if any(w.lower() in name for w in whitelist):
+            return False
+
+        # 2. Windows 过滤逻辑
+        if sys_name == "Windows":
+            # 检查发布者
+            if any(p.lower() == publisher for p in cls.WIN_PUBLISHERS):
+                return True
+            # 检查 AppX 名称前缀
+            if source == "appx":
+                if any(name.startswith(p.lower()) for p in cls.WIN_APPX_PREFIXES):
+                    return True
+            # 检查安装路径 (如果是系统目录通常是原生的)
+            install_path = item.get("install_path", "").lower()
+            if "c:\\windows\\system32" in install_path or "c:\\windows\\syswow64" in install_path:
+                return True
+                    
+        # 3. Linux 过滤逻辑
+        elif sys_name == "Linux":
+            # 检查 Vendor (RPM)
+            if any(v.lower() in publisher for v in cls.LINUX_VENDORS):
+                return True
+            # 检查 Priority/Section (DPKG)
+            priority = item.get("priority", "").lower()
+            section = item.get("section", "").lower()
+            if priority in cls.LINUX_PRIORITIES or section in cls.LINUX_SECTIONS:
+                return True
+            # 检查包名模式（通常是基础库）
+            if name.startswith("lib") and source == "dpkg":
+                # 简单的启发式：如果 section 是 libs 则过滤
+                if "libs" in section:
+                    return True
+                
+        return False
 
 
 # ============================================================
@@ -208,8 +270,9 @@ def scan_linux_software():
 
     # dpkg (Debian/Ubuntu)
     if cmd_exists("dpkg-query"):
+        # 增加 Priority 和 Section 字段用于过滤识别
         stdout, _, rc = run_cmd(
-            ["dpkg-query", "-W", "-f", "${Package}\t${Version}\t${Status}\n"]
+            ["dpkg-query", "-W", "-f", "${Package}\t${Version}\t${Status}\t${Priority}\t${Section}\n"]
         )
         if rc == 0 and stdout:
             for line in stdout.splitlines():
@@ -222,6 +285,8 @@ def scan_linux_software():
                         "name": parts[0], "version": parts[1],
                         "source": "dpkg", "install_path": "",
                         "publisher": "", "install_date": "",
+                        "priority": parts[3] if len(parts) > 3 else "",
+                        "section": parts[4] if len(parts) > 4 else "",
                     })
 
     # rpm (RHEL/CentOS/Fedora)
@@ -337,18 +402,27 @@ def scan_macos_software():
     return sorted(items, key=lambda x: x["name"].lower())
 
 
-def scan_os_software():
+def scan_os_software(filter_native=True):
     """根据操作系统调用对应扫描器"""
     sys_name = platform.system()
+    raw_items = []
     if sys_name == "Windows":
-        items = scan_windows_software()
-        items.extend(scan_windows_appx())
-        return items
+        raw_items = scan_windows_software()
+        raw_items.extend(scan_windows_appx())
     elif sys_name == "Linux":
-        return scan_linux_software()
+        raw_items = scan_linux_software()
     elif sys_name == "Darwin":
-        return scan_macos_software()
-    return []
+        raw_items = scan_macos_software()
+    
+    if not filter_native:
+        return raw_items
+    
+    # 应用过滤逻辑
+    filtered_items = [
+        item for item in raw_items 
+        if not SoftwareFilter.is_native(item, sys_name)
+    ]
+    return filtered_items
 
 
 # ============================================================
@@ -697,8 +771,8 @@ def main():
     report_dir.mkdir(exist_ok=True)
 
     # ---- 系统软件扫描 ----
-    print("  正在扫描系统软件...")
-    os_items = scan_os_software()
+    print("  正在扫描系统软件 (已开启原生过滤)...")
+    os_items = scan_os_software(filter_native=True)
     print_result("系统软件扫描完成", len(os_items))
 
     # ---- 语言依赖包扫描 ----

@@ -21,7 +21,7 @@ from pathlib import Path
 # ============================================================
 # 常量与配置
 # ============================================================
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 COMMAND_TIMEOUT = 30  # 子命令超时（秒）
 CSV_BOM = "\ufeff"    # UTF-8 BOM，确保 Excel 正确显示中文
 
@@ -35,8 +35,14 @@ class SoftwareFilter:
     
     # Windows 规则
     WIN_PUBLISHERS = ["Microsoft Corporation"]
-    WIN_APPX_PREFIXES = ["Microsoft.", "System.", "Windows.", "App."]
+    WIN_APPX_PREFIXES = [
+        "Microsoft.", "System.", "Windows.", "App.", "MicrosoftWindows.", 
+        "MicrosoftCorporationII.", "RealtekSemiconductorCorp."
+    ]
     WIN_WHITELIST = ["Visual Studio", "Office", "Edge", "PowerShell", "VS Code", "Teams", "Sql Server"]
+    # 常见的第三方预装杂讯或扩展项
+    WIN_NOISE_PATTERNS = ["wpsappext", "ksystemsharehost", "ksystemshare", "driver", "update"]
+    
     # Python 子组件关键字（Windows 注册表冗余项）
     WIN_PYTHON_SUBCOMPONENTS = [
         "Core Interpreter", "Development Libraries", "Documentation", 
@@ -70,6 +76,16 @@ class SoftwareFilter:
             if source == "appx":
                 if any(name.startswith(p.lower()) for p in cls.WIN_APPX_PREFIXES):
                     return True
+            
+            # 检查杂讯关键词
+            if any(p.lower() in name for p in cls.WIN_NOISE_PATTERNS):
+                return True
+            
+            # 检查是否为 UUID/GUID 格式 (常见于系统补丁或临时项)
+            guid_pattern = r'^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?$'
+            if re.match(guid_pattern, name):
+                return True
+
             # 检查安装路径 (如果是系统目录通常是原生的)
             install_path = item.get("install_path", "").lower()
             if "c:\\windows\\system32" in install_path or "c:\\windows\\syswow64" in install_path:

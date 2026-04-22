@@ -21,7 +21,7 @@ from pathlib import Path
 # ============================================================
 # 常量与配置
 # ============================================================
-VERSION = "1.1"
+VERSION = "1.1.1"
 COMMAND_TIMEOUT = 30  # 子命令超时（秒）
 CSV_BOM = "\ufeff"    # UTF-8 BOM，确保 Excel 正确显示中文
 
@@ -37,6 +37,12 @@ class SoftwareFilter:
     WIN_PUBLISHERS = ["Microsoft Corporation"]
     WIN_APPX_PREFIXES = ["Microsoft.", "System.", "Windows.", "App."]
     WIN_WHITELIST = ["Visual Studio", "Office", "Edge", "PowerShell", "VS Code", "Teams", "Sql Server"]
+    # Python 子组件关键字（Windows 注册表冗余项）
+    WIN_PYTHON_SUBCOMPONENTS = [
+        "Core Interpreter", "Development Libraries", "Documentation", 
+        "Executables", "pip Bootstrap", "Standard Library", 
+        "Tcl/Tk Support", "Test Suite", "Add to Path"
+    ]
 
     # Linux 规则
     LINUX_SECTIONS = ["base", "admin", "kernel", "libs", "shlibs", "perl", "python"]
@@ -68,6 +74,11 @@ class SoftwareFilter:
             install_path = item.get("install_path", "").lower()
             if "c:\\windows\\system32" in install_path or "c:\\windows\\syswow64" in install_path:
                 return True
+            
+            # 特殊处理：Python 子组件去重（Windows）
+            if "python" in name:
+                if any(sub.lower() in name for sub in cls.WIN_PYTHON_SUBCOMPONENTS):
+                    return True
                     
         # 3. Linux 过滤逻辑
         elif sys_name == "Linux":

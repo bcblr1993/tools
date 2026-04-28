@@ -53,11 +53,10 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         docker run --rm -v ${{ github.workspace }}:/workspace -w /workspace quay.io/pypa/manylinux2014_x86_64 bash -c "\
-          curl -sL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh && \
+          curl -sL https://repo.anaconda.com/miniconda/Miniconda3-py311_23.5.2-0-Linux-x86_64.sh -o miniconda.sh && \
           bash miniconda.sh -b -p /opt/conda && \
-          /opt/conda/bin/conda create -y -n py311 python=3.11 && \
-          /opt/conda/envs/py311/bin/pip install pyinstaller && \
-          /opt/conda/envs/py311/bin/pyinstaller --onefile --console software_scanner.py && \
+          /opt/conda/bin/pip install pyinstaller && \
+          /opt/conda/bin/pyinstaller --onefile --console software_scanner.py && \
           chmod -R 777 dist build && \
           mv dist/software_scanner dist/software_scanner_linux"
 
